@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 
@@ -14,6 +15,17 @@ class CheckResult:
     output: str
 
 
+@dataclass(frozen=True)
+class RepositoryInspection:
+    root: str
+    has_agents: bool
+    has_readme: bool
+    has_pyproject: bool
+    has_makefile: bool
+    has_tests: bool
+    has_ci: bool
+
+
 CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("format", ("ruff", "format", "--check", ".")),
     ("lint", ("ruff", "check", ".")),
@@ -22,16 +34,16 @@ CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-def inspect_repository(root: Path) -> dict[str, object]:
-    return {
-        "root": str(root),
-        "has_agents": (root / "AGENTS.md").exists(),
-        "has_readme": (root / "README.md").exists(),
-        "has_pyproject": (root / "pyproject.toml").exists(),
-        "has_makefile": (root / "Makefile").exists(),
-        "has_tests": (root / "tests").is_dir(),
-        "has_ci": (root / ".github" / "workflows").is_dir(),
-    }
+def inspect_repository(root: Path) -> RepositoryInspection:
+    return RepositoryInspection(
+        root=str(root),
+        has_agents=(root / "AGENTS.md").exists(),
+        has_readme=(root / "README.md").exists(),
+        has_pyproject=(root / "pyproject.toml").exists(),
+        has_makefile=(root / "Makefile").exists(),
+        has_tests=(root / "tests").is_dir(),
+        has_ci=(root / ".github" / "workflows").is_dir(),
+    )
 
 
 def run_check(
@@ -63,6 +75,27 @@ def run_checks(root: Path) -> list[CheckResult]:
     return [run_check(name, command, root) for name, command in CHECKS]
 
 
+def print_inspection(result: RepositoryInspection) -> None:
+    print("AI Engineering Harness")
+    print("======================")
+    print(f"Repository: {result.root}")
+    print()
+    print("Engineering controls:")
+
+    controls = {
+        "AGENTS.md": result.has_agents,
+        "README.md": result.has_readme,
+        "pyproject.toml": result.has_pyproject,
+        "Makefile": result.has_makefile,
+        "tests/": result.has_tests,
+        ".github/workflows/": result.has_ci,
+    }
+
+    for name, exists in controls.items():
+        status = "✓" if exists else "✗"
+        print(f"  {status} {name}")
+
+
 def print_check_results(results: list[CheckResult]) -> None:
     print("AI Engineering Harness")
     print("======================")
@@ -92,9 +125,14 @@ def main() -> None:
 
     subparsers = parser.add_subparsers(dest="command")
 
-    subparsers.add_parser(
+    inspect_parser = subparsers.add_parser(
         "inspect",
         help="Inspect repository structure and engineering controls.",
+    )
+    inspect_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output inspection evidence as JSON.",
     )
 
     subparsers.add_parser(
@@ -108,24 +146,10 @@ def main() -> None:
     if args.command == "inspect":
         result = inspect_repository(root)
 
-        print("AI Engineering Harness")
-        print("======================")
-        print(f"Repository: {result['root']}")
-        print()
-        print("Engineering controls:")
-
-        controls = {
-            "AGENTS.md": result["has_agents"],
-            "README.md": result["has_readme"],
-            "pyproject.toml": result["has_pyproject"],
-            "Makefile": result["has_makefile"],
-            "tests/": result["has_tests"],
-            ".github/workflows/": result["has_ci"],
-        }
-
-        for name, exists in controls.items():
-            status = "✓" if exists else "✗"
-            print(f"  {status} {name}")
+        if args.json:
+            print(json.dumps(asdict(result), indent=2, sort_keys=True))
+        else:
+            print_inspection(result)
 
     elif args.command == "check":
         results = run_checks(root)

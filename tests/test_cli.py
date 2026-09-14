@@ -1,12 +1,15 @@
+import json
 from pathlib import Path
 
 import pytest
 
 from harness.cli import (
     CheckResult,
+    RepositoryInspection,
     inspect_repository,
     main,
     print_check_results,
+    print_inspection,
     run_check,
     run_checks,
 )
@@ -22,23 +25,26 @@ def test_inspect_repository_detects_harness_files(tmp_path: Path) -> None:
 
     result = inspect_repository(tmp_path)
 
-    assert result["has_agents"] is True
-    assert result["has_readme"] is True
-    assert result["has_pyproject"] is True
-    assert result["has_makefile"] is True
-    assert result["has_tests"] is True
-    assert result["has_ci"] is True
+    assert result == RepositoryInspection(
+        root=str(tmp_path),
+        has_agents=True,
+        has_readme=True,
+        has_pyproject=True,
+        has_makefile=True,
+        has_tests=True,
+        has_ci=True,
+    )
 
 
 def test_inspect_repository_detects_missing_controls(tmp_path: Path) -> None:
     result = inspect_repository(tmp_path)
 
-    assert result["has_agents"] is False
-    assert result["has_readme"] is False
-    assert result["has_pyproject"] is False
-    assert result["has_makefile"] is False
-    assert result["has_tests"] is False
-    assert result["has_ci"] is False
+    assert result.has_agents is False
+    assert result.has_readme is False
+    assert result.has_pyproject is False
+    assert result.has_makefile is False
+    assert result.has_tests is False
+    assert result.has_ci is False
 
 
 def test_run_check_success(tmp_path: Path) -> None:
@@ -94,6 +100,28 @@ def test_run_checks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     assert len(calls) == 4
 
 
+def test_print_inspection(capsys: pytest.CaptureFixture[str]) -> None:
+    result = RepositoryInspection(
+        root="/repo",
+        has_agents=True,
+        has_readme=False,
+        has_pyproject=True,
+        has_makefile=True,
+        has_tests=True,
+        has_ci=False,
+    )
+
+    print_inspection(result)
+
+    output = capsys.readouterr().out
+
+    assert "Repository: /repo" in output
+    assert "✓ AGENTS.md" in output
+    assert "✗ README.md" in output
+    assert "✓ tests/" in output
+    assert "✗ .github/workflows/" in output
+
+
 def test_print_check_results(capsys: pytest.CaptureFixture[str]) -> None:
     results = [
         CheckResult("format", True, 0, ""),
@@ -123,6 +151,23 @@ def test_main_inspect_command(
     assert "AI Engineering Harness" in output
     assert "Engineering controls:" in output
     assert "AGENTS.md" in output
+
+
+def test_main_inspect_json_command(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.argv", ["harness", "inspect", "--json"])
+
+    main()
+
+    output = capsys.readouterr().out
+    data = json.loads(output)
+
+    assert data["root"] == str(Path.cwd())
+    assert data["has_agents"] is True
+    assert data["has_pyproject"] is True
+    assert data["has_tests"] is True
 
 
 def test_main_without_command(
