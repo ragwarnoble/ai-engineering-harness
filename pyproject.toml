@@ -34,3 +34,6 @@ source = ["src/harness"]
 [tool.coverage.report]
 fail_under = 85
 show_missing = true
+
+[project.scripts]
+harness = "harness.cli:main"
