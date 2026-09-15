@@ -148,7 +148,7 @@ def test_main_inspect_command(
 
     output = capsys.readouterr().out
 
-    assert "AI Engineering Harness" in output
+    assert "AI Engineering Platform" in output
     assert "Engineering controls:" in output
     assert "AGENTS.md" in output
 

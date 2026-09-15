@@ -76,7 +76,7 @@ def run_checks(root: Path) -> list[CheckResult]:
 
 
 def print_inspection(result: RepositoryInspection) -> None:
-    print("AI Engineering Harness")
+    print("AI Engineering Platform")
     print("======================")
     print(f"Repository: {result.root}")
     print()
@@ -97,7 +97,7 @@ def print_inspection(result: RepositoryInspection) -> None:
 
 
 def print_check_results(results: list[CheckResult]) -> None:
-    print("AI Engineering Harness")
+    print("AI Engineering Platform")
     print("======================")
     print()
     print("Engineering checks:")
@@ -120,7 +120,7 @@ def print_check_results(results: list[CheckResult]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="harness",
-        description="AI Engineering Harness",
+        description="AI Engineering Platform",
     )
 
     subparsers = parser.add_subparsers(dest="command")

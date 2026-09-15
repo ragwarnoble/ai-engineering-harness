@@ -1,8 +1,8 @@
-# AI Engineering Harness
+# AI Engineering Platform
 
 ## Mission
 
-Build reliable, testable, maintainable software with AI assistance.
+Build reliable, testable, maintainable AI, data, and software systems with AI assistance.
 
 ## Core principles
 
