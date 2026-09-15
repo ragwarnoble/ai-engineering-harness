@@ -2,13 +2,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Protocol
 
+from harness.data_quality import DataQualitySummary
 from harness.evaluation import EvaluationSummary
+
+
+class EvidenceResult(Protocol):
+    """Common interface for results that can produce evidence."""
+
+    name: str
+    passed: bool
 
 
 @dataclass(frozen=True)
 class EvidenceRecord:
-    """Machine-readable evidence produced by an evaluation."""
+    """Machine-readable evidence produced by an evaluation or data check."""
 
     category: str
     name: str
@@ -18,7 +27,7 @@ class EvidenceRecord:
 
 @dataclass(frozen=True)
 class EvaluationEvidence:
-    """Evidence package for one evaluation run."""
+    """Evidence package for one evaluation or data-quality run."""
 
     timestamp: str
     passed: bool
@@ -26,25 +35,36 @@ class EvaluationEvidence:
 
 
 def build_evidence(
-    summary: EvaluationSummary,
+    summary: EvaluationSummary | DataQualitySummary,
     *,
     category: str = "evaluation",
 ) -> EvaluationEvidence:
-    """Convert an evaluation summary into immutable evidence."""
+    """Convert an evaluation or data-quality summary into immutable evidence."""
 
-    records = tuple(
-        EvidenceRecord(
-            category=category,
-            name=result.name,
-            passed=result.passed,
-            details=(
-                f"expected={result.expected}",
-                f"actual={result.actual}",
-                *result.evidence,
-            ),
+    if isinstance(summary, EvaluationSummary):
+        records = tuple(
+            EvidenceRecord(
+                category=category,
+                name=result.name,
+                passed=result.passed,
+                details=(
+                    f"expected={result.expected}",
+                    f"actual={result.actual}",
+                    *result.evidence,
+                ),
+            )
+            for result in summary.results
         )
-        for result in summary.results
-    )
+    else:
+        records = tuple(
+            EvidenceRecord(
+                category=category,
+                name=result.name,
+                passed=result.passed,
+                details=result.details,
+            )
+            for result in summary.results
+        )
 
     return EvaluationEvidence(
         timestamp=datetime.now(UTC).isoformat(),

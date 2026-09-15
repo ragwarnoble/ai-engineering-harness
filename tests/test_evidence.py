@@ -1,5 +1,9 @@
 from datetime import datetime
 
+from harness.data_quality import (
+    DataQualityCheck,
+    DataQualityEngine,
+)
 from harness.evaluation import (
     DeterministicEvaluator,
     EvaluationCase,
@@ -76,3 +80,53 @@ def test_evidence_timestamp_is_valid_utc_iso_format() -> None:
 
     assert timestamp.tzinfo is not None
     assert timestamp.utcoffset() is not None
+
+
+def test_build_evidence_from_data_quality() -> None:
+    summary = DataQualityEngine().evaluate(
+        ({"id": 1}, {"id": 2}),
+        (
+            DataQualityCheck(
+                name="id-unique",
+                kind="unique",
+                field="id",
+            ),
+        ),
+    )
+
+    evidence = build_evidence(
+        summary,
+        category="data_quality",
+    )
+
+    assert evidence.passed is True
+    assert evidence.records == (
+        EvidenceRecord(
+            category="data_quality",
+            name="id-unique",
+            passed=True,
+            details=("duplicate_values=0",),
+        ),
+    )
+
+
+def test_build_evidence_preserves_data_quality_failure() -> None:
+    summary = DataQualityEngine().evaluate(
+        ({"id": 1}, {"id": 1}),
+        (
+            DataQualityCheck(
+                name="id-unique",
+                kind="unique",
+                field="id",
+            ),
+        ),
+    )
+
+    evidence = build_evidence(
+        summary,
+        category="data_quality",
+    )
+
+    assert evidence.passed is False
+    assert evidence.records[0].passed is False
+    assert evidence.records[0].details == ("duplicate_values=1",)
