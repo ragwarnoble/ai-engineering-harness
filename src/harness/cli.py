@@ -6,6 +6,9 @@ import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from harness.manifest import PlatformManifest, load_manifest
+from harness.policy import PolicyEngine, PolicyResult
+
 
 @dataclass(frozen=True)
 class CheckResult:
@@ -96,6 +99,51 @@ def print_inspection(result: RepositoryInspection) -> None:
         print(f"  {status} {name}")
 
 
+def print_manifest(result: PlatformManifest) -> None:
+    print("AI Engineering Platform")
+    print("======================")
+    print()
+    print("Platform manifest:")
+    print(f"  Project: {result.project.name}")
+    print(f"  Role: {result.project.role}")
+    print("  Profiles: " + ", ".join(result.application.supported_profiles))
+    print()
+    print("Pillars:")
+    print(f"  AI engineering: {result.pillars.ai_engineering}")
+    print(f"  Data engineering: {result.pillars.data_engineering}")
+    print(f"  Software engineering: {result.pillars.software_engineering}")
+    print(f"  Governance: {result.pillars.governance}")
+
+
+def print_policy(result: PolicyResult) -> None:
+    print("AI Engineering Platform")
+    print("======================")
+    print()
+    print("Policy evaluation:")
+    print(f"  Result: {'PASS' if result.passed else 'FAIL'}")
+
+    print()
+    print("Required checks:")
+    for check in result.required_checks:
+        print(f"  - {check}")
+
+    print()
+    print("Required evaluations:")
+    for evaluation in result.required_evaluations:
+        print(f"  - {evaluation}")
+
+    print()
+    print("Human approval required for:")
+    for requirement in result.human_approval_required:
+        print(f"  - {requirement}")
+
+    if result.failures:
+        print()
+        print("Failures:")
+        for failure in result.failures:
+            print(f"  ✗ {failure}")
+
+
 def print_check_results(results: list[CheckResult]) -> None:
     print("AI Engineering Platform")
     print("======================")
@@ -140,6 +188,26 @@ def main() -> None:
         help="Run deterministic engineering checks.",
     )
 
+    manifest_parser = subparsers.add_parser(
+        "manifest",
+        help="Load and display the platform manifest.",
+    )
+    manifest_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output the manifest as JSON.",
+    )
+
+    policy_parser = subparsers.add_parser(
+        "policy",
+        help="Evaluate platform policy.",
+    )
+    policy_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output policy evidence as JSON.",
+    )
+
     args = parser.parse_args()
     root = Path.cwd()
 
@@ -156,6 +224,26 @@ def main() -> None:
         print_check_results(results)
 
         if not all(result.passed for result in results):
+            raise SystemExit(1)
+
+    elif args.command == "manifest":
+        manifest = load_manifest(root / "platform.yaml")
+
+        if args.json:
+            print(json.dumps(asdict(manifest), indent=2, sort_keys=True))
+        else:
+            print_manifest(manifest)
+
+    elif args.command == "policy":
+        manifest = load_manifest(root / "platform.yaml")
+        policy_result = PolicyEngine().evaluate(manifest)
+
+        if args.json:
+            print(json.dumps(asdict(policy_result), indent=2, sort_keys=True))
+        else:
+            print_policy(policy_result)
+
+        if not policy_result.passed:
             raise SystemExit(1)
 
     else:

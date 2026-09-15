@@ -10,9 +10,13 @@ from harness.cli import (
     main,
     print_check_results,
     print_inspection,
+    print_manifest,
+    print_policy,
     run_check,
     run_checks,
 )
+from harness.manifest import load_manifest
+from harness.policy import PolicyEngine, PolicyResult
 
 
 def test_inspect_repository_detects_harness_files(tmp_path: Path) -> None:
@@ -181,3 +185,160 @@ def test_main_without_command(
     output = capsys.readouterr().out
 
     assert "usage:" in output
+
+
+def test_print_manifest(capsys: pytest.CaptureFixture[str]) -> None:
+    result = load_manifest(Path("platform.yaml"))
+
+    print_manifest(result)
+
+    output = capsys.readouterr().out
+
+    assert "Platform manifest:" in output
+    assert "Project: ai-engineering-platform" in output
+    assert "Role: platform" in output
+    assert "Profiles: personal, business, enterprise" in output
+    assert "AI engineering: True" in output
+    assert "Data engineering: True" in output
+    assert "Software engineering: True" in output
+    assert "Governance: True" in output
+
+
+def test_print_policy(capsys: pytest.CaptureFixture[str]) -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+    result = PolicyEngine().evaluate(manifest)
+
+    print_policy(result)
+
+    output = capsys.readouterr().out
+
+    assert "Policy evaluation:" in output
+    assert "Result: PASS" in output
+    assert "- format" in output
+    assert "- lint" in output
+    assert "- ai_evaluation" in output
+    assert "- data_quality" in output
+    assert "- production_changes" in output
+
+
+def test_print_policy_with_failures(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+
+    broken = manifest.__class__(
+        version=manifest.version,
+        project=manifest.project,
+        application=manifest.application,
+        pillars=manifest.pillars.__class__(
+            ai_engineering=False,
+            data_engineering=manifest.pillars.data_engineering,
+            software_engineering=manifest.pillars.software_engineering,
+            governance=manifest.pillars.governance,
+        ),
+        agents=manifest.agents,
+        quality_gates=manifest.quality_gates,
+        data=manifest.data,
+        ai=manifest.ai,
+        human_in_the_loop=manifest.human_in_the_loop,
+    )
+
+    result = PolicyEngine().evaluate(broken)
+
+    print_policy(result)
+
+    output = capsys.readouterr().out
+
+    assert "Result: FAIL" in output
+    assert "Failures:" in output
+    assert "AI evaluation requirements enabled" in output
+
+
+def test_main_manifest_command(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.argv", ["harness", "manifest"])
+
+    main()
+
+    output = capsys.readouterr().out
+
+    assert "Platform manifest:" in output
+    assert "Project: ai-engineering-platform" in output
+
+
+def test_main_manifest_json_command(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.argv", ["harness", "manifest", "--json"])
+
+    main()
+
+    output = capsys.readouterr().out
+    data = json.loads(output)
+
+    assert data["version"] == "1.0"
+    assert data["project"]["name"] == "ai-engineering-platform"
+    assert data["project"]["role"] == "platform"
+    assert data["application"]["supported_profiles"] == [
+        "personal",
+        "business",
+        "enterprise",
+    ]
+
+
+def test_main_policy_command(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.argv", ["harness", "policy"])
+
+    main()
+
+    output = capsys.readouterr().out
+
+    assert "Policy evaluation:" in output
+    assert "Result: PASS" in output
+    assert "engineering_evaluation" in output
+
+
+def test_main_policy_json_command(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr("sys.argv", ["harness", "policy", "--json"])
+
+    main()
+
+    output = capsys.readouterr().out
+    data = json.loads(output)
+
+    assert data["passed"] is True
+    assert "format" in data["required_checks"]
+    assert "ai_evaluation" in data["required_evaluations"]
+    assert "production_changes" in data["human_approval_required"]
+    assert data["failures"] == []
+
+
+def test_main_policy_failure_exits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingPolicy:
+        def evaluate(self, manifest: object) -> PolicyResult:
+            return PolicyResult(
+                passed=False,
+                required_checks=(),
+                required_evaluations=(),
+                human_approval_required=(),
+                failures=("policy failure",),
+            )
+
+    monkeypatch.setattr("harness.cli.PolicyEngine", FailingPolicy)
+    monkeypatch.setattr("sys.argv", ["harness", "policy"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
