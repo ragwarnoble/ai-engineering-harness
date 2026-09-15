@@ -33,6 +33,7 @@ CHECK_COMMANDS: dict[str, tuple[str, ...]] = {
     "lint": ("ruff", "check", "."),
     "typecheck": ("mypy", "src"),
     "tests": ("pytest",),
+    "security": ("bandit", "-r", "src", "-ll"),
 }
 
 

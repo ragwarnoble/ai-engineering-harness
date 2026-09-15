@@ -98,3 +98,33 @@ def test_run_quality_gate_stops_on_policy_failure(
     assert result.checks == ()
     assert result.unsupported_checks == ()
     assert result.policy.failures == ("policy failure",)
+
+
+def test_run_quality_gate_supports_security_check() -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+
+    commands = {
+        "format": ("python", "-c", "print('format')"),
+        "lint": ("python", "-c", "print('lint')"),
+        "typecheck": ("python", "-c", "print('typecheck')"),
+        "tests": ("python", "-c", "print('tests')"),
+        "coverage": ("python", "-c", "print('coverage')"),
+        "security": ("python", "-c", "print('security')"),
+    }
+
+    result = run_quality_gate(
+        manifest,
+        Path.cwd(),
+        commands=commands,
+    )
+
+    assert result.passed is True
+    assert result.unsupported_checks == ()
+    assert [check.name for check in result.checks] == [
+        "format",
+        "lint",
+        "typecheck",
+        "tests",
+        "coverage",
+        "security",
+    ]
