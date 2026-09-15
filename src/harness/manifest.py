@@ -42,6 +42,7 @@ class QualityGateConfig:
     typecheck: bool
     tests: bool
     coverage: bool
+    coverage_threshold: int
     security: bool
     evaluation: bool
 
@@ -178,6 +179,14 @@ def load_manifest(path: Path) -> PlatformManifest:
         "quality_gates",
     )
 
+    coverage_threshold = quality_gates.get("coverage_threshold")
+    if (
+        not isinstance(coverage_threshold, int)
+        or isinstance(coverage_threshold, bool)
+        or not 0 <= coverage_threshold <= 100
+    ):
+        raise ValueError("quality_gates.coverage_threshold must be an integer from 0 to 100")
+
     data_values = _require_bool_fields(
         data,
         (
@@ -205,7 +214,10 @@ def load_manifest(path: Path) -> PlatformManifest:
         application=ApplicationConfig(tuple(profiles)),
         pillars=PillarConfig(**pillar_values),
         agents=AgentConfig(**agent_values),
-        quality_gates=QualityGateConfig(**quality_values),
+        quality_gates=QualityGateConfig(
+            **quality_values,
+            coverage_threshold=coverage_threshold,
+        ),
         data=DataConfig(**data_values),
         ai=AIConfig(**ai_values),
         human_in_the_loop=HumanInTheLoopConfig(

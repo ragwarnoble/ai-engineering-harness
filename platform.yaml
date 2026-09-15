@@ -29,6 +29,7 @@ quality_gates:
   typecheck: true
   tests: true
   coverage: true
+  coverage_threshold: 85
   security: true
   evaluation: true
 

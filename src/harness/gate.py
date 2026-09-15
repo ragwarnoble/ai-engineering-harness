@@ -84,6 +84,17 @@ def run_quality_gate(
     unsupported_checks: list[str] = []
     available_commands = CHECK_COMMANDS if commands is None else commands
 
+    if "coverage" in policy.required_checks and commands is None:
+        available_commands = {
+            **available_commands,
+            "coverage": (
+                "pytest",
+                "--cov",
+                "--cov-report=term-missing",
+                f"--cov-fail-under={manifest.quality_gates.coverage_threshold}",
+            ),
+        }
+
     for name in policy.required_checks:
         command = available_commands.get(name)
 

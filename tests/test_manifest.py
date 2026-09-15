@@ -29,6 +29,7 @@ quality_gates:
   typecheck: true
   tests: true
   coverage: true
+  coverage_threshold: 85
   security: true
   evaluation: true
 data:
@@ -91,3 +92,23 @@ def test_reject_missing_boolean(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="pillars.ai_engineering"):
         load_manifest(manifest_path)
+
+
+def test_manifest_loads_coverage_threshold() -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+
+    assert manifest.quality_gates.coverage_threshold == 85
+
+
+def test_manifest_rejects_invalid_coverage_threshold(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "platform.yaml"
+    path.write_text(
+        Path("platform.yaml")
+        .read_text()
+        .replace("coverage_threshold: 85", "coverage_threshold: 101")
+    )
+
+    with pytest.raises(ValueError, match="coverage_threshold"):
+        load_manifest(path)
