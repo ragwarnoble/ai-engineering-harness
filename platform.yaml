@@ -1,0 +1,52 @@
+version: "1.0"
+
+project:
+  name: ai-engineering-platform
+  role: platform
+  description: >
+    Reusable engineering platform for building, testing, evaluating,
+    and operating AI, data, and software systems.
+
+application:
+  supported_profiles:
+    - personal
+    - business
+    - enterprise
+
+pillars:
+  ai_engineering: true
+  data_engineering: true
+  software_engineering: true
+  governance: true
+
+agents:
+  provider_neutral: true
+  human_approval_required: true
+
+quality_gates:
+  format: true
+  lint: true
+  typecheck: true
+  tests: true
+  coverage: true
+  security: true
+  evaluation: true
+
+data:
+  validation_required: true
+  quality_checks_required: true
+  lineage_required: false
+  observability_required: true
+
+ai:
+  evaluation_required: true
+  regression_testing_required: true
+  rag_evaluation_supported: true
+
+human_in_the_loop:
+  enabled: true
+  required_for:
+    - production_changes
+    - security_changes
+    - data_schema_changes
+    - deployment_changes
