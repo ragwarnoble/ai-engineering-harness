@@ -1,0 +1,68 @@
+{
+  "checks": [
+    {
+      "name": "format",
+      "output": "23 files already formatted\n",
+      "passed": true,
+      "returncode": 0
+    },
+    {
+      "name": "lint",
+      "output": "All checks passed!\n",
+      "passed": true,
+      "returncode": 0
+    },
+    {
+      "name": "typecheck",
+      "output": "Success: no issues found in 10 source files\n",
+      "passed": true,
+      "returncode": 0
+    },
+    {
+      "name": "tests",
+      "output": "...........................................................              [100%]\n59 passed in 0.52s\n",
+      "passed": true,
+      "returncode": 0
+    },
+    {
+      "name": "coverage",
+      "output": "...........................................................              [100%]\n================================ tests coverage ================================\n_______________ coverage: platform linux, python 3.14.2-final-0 ________________\n\nName                           Stmts   Miss  Cover   Missing\n------------------------------------------------------------\nsrc/harness/__init__.py            0      0   100%\nsrc/harness/agent.py              20      0   100%\nsrc/harness/cli.py               170     35    79%   69, 150-167, 261-265, 288-305, 312\nsrc/harness/data_quality.py       81      3    96%   106, 125, 150\nsrc/harness/evaluation.py         37      0   100%\nsrc/harness/evidence.py           25      0   100%\nsrc/harness/gate.py               46      4    91%   53, 83-85, 111\nsrc/harness/gate_evidence.py       9      0   100%\nsrc/harness/manifest.py          107      4    96%   86, 93, 133, 143\nsrc/harness/policy.py             42      0   100%\n------------------------------------------------------------\nTOTAL                            537     46    91%\nRequired test coverage of 85% reached. Total coverage: 91.43%\n59 passed in 0.52s\n",
+      "passed": true,
+      "returncode": 0
+    },
+    {
+      "name": "security",
+      "output": "Run started:2026-09-16 20:08:48.766482+00:00\n\nTest results:\n\tNo issues identified.\n\nCode scanned:\n\tTotal lines of code: 926\n\tTotal lines skipped (#nosec): 0\n\tTotal potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0\n\nRun metrics:\n\tTotal issues (by severity):\n\t\tUndefined: 0\n\t\tLow: 4\n\t\tMedium: 0\n\t\tHigh: 0\n\tTotal issues (by confidence):\n\t\tUndefined: 0\n\t\tLow: 0\n\t\tMedium: 0\n\t\tHigh: 4\nFiles skipped (0):\n[main]\tINFO\tprofile include tests: None\n[main]\tINFO\tprofile exclude tests: None\n[main]\tINFO\tcli include tests: None\n[main]\tINFO\tcli exclude tests: None\n[main]\tINFO\trunning on Python 3.14.2\n",
+      "passed": true,
+      "returncode": 0
+    }
+  ],
+  "passed": true,
+  "policy": {
+    "failures": [],
+    "human_approval_required": [
+      "production_changes",
+      "security_changes",
+      "data_schema_changes",
+      "deployment_changes"
+    ],
+    "passed": true,
+    "required_checks": [
+      "format",
+      "lint",
+      "typecheck",
+      "tests",
+      "coverage",
+      "security"
+    ],
+    "required_evaluations": [
+      "engineering_evaluation",
+      "ai_evaluation",
+      "ai_regression",
+      "data_validation",
+      "data_quality",
+      "data_observability"
+    ]
+  },
+  "unsupported_checks": []
+}

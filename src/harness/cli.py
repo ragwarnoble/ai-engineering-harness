@@ -6,6 +6,8 @@ import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from harness.gate import QualityGateResult, run_quality_gate
+from harness.gate_evidence import write_gate_evidence
 from harness.manifest import PlatformManifest, load_manifest
 from harness.policy import PolicyEngine, PolicyResult
 
@@ -144,6 +146,27 @@ def print_policy(result: PolicyResult) -> None:
             print(f"  ✗ {failure}")
 
 
+def print_gate(result: QualityGateResult) -> None:
+    print("AI Engineering Platform")
+    print("======================")
+    print()
+    print("Quality gate:")
+    print(f"  Result: {'PASS' if result.passed else 'FAIL'}")
+    print(f"  Policy: {'PASS' if result.policy.passed else 'FAIL'}")
+
+    print()
+    print("Executed checks:")
+    for check in result.checks:
+        status = "✓" if check.passed else "✗"
+        print(f"  {status} {check.name}")
+
+    if result.unsupported_checks:
+        print()
+        print("Unsupported checks:")
+        for unsupported_check in result.unsupported_checks:
+            print(f"  - {unsupported_check}")
+
+
 def print_check_results(results: list[CheckResult]) -> None:
     print("AI Engineering Platform")
     print("======================")
@@ -208,6 +231,21 @@ def main() -> None:
         help="Output policy evidence as JSON.",
     )
 
+    gate_parser = subparsers.add_parser(
+        "gate",
+        help="Evaluate policy and execute the platform quality gate.",
+    )
+    gate_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output quality-gate evidence as JSON.",
+    )
+    gate_parser.add_argument(
+        "--evidence",
+        action="store_true",
+        help="Persist quality-gate evidence to artifacts/gate.json.",
+    )
+
     args = parser.parse_args()
     root = Path.cwd()
 
@@ -244,6 +282,26 @@ def main() -> None:
             print_policy(policy_result)
 
         if not policy_result.passed:
+            raise SystemExit(1)
+
+    elif args.command == "gate":
+        manifest = load_manifest(root / "platform.yaml")
+        gate_result = run_quality_gate(manifest, root)
+
+        if args.evidence:
+            evidence_path = root / "artifacts" / "gate.json"
+            write_gate_evidence(gate_result, evidence_path)
+
+        if args.json:
+            print(json.dumps(asdict(gate_result), indent=2, sort_keys=True))
+        else:
+            print_gate(gate_result)
+
+            if args.evidence:
+                print()
+                print(f"Evidence: {evidence_path}")
+
+        if not gate_result.passed:
             raise SystemExit(1)
 
     else:
