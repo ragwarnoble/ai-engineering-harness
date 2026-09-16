@@ -6,6 +6,11 @@ import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from harness.approval import (
+    create_approval,
+    write_approval,
+)
+from harness.authorization import authorize
 from harness.gate import QualityGateResult, run_quality_gate
 from harness.gate_evidence import write_gate_evidence
 from harness.manifest import PlatformManifest, load_manifest
@@ -247,6 +252,36 @@ def main() -> None:
         help="Persist quality-gate and run evidence.",
     )
 
+    approve_parser = subparsers.add_parser(
+        "approve",
+        help="Record explicit human approval for an authorized scope.",
+    )
+    approve_parser.add_argument(
+        "--approver",
+        required=True,
+        help="Human approver identity.",
+    )
+    approve_parser.add_argument(
+        "--scope",
+        required=True,
+        help="Authorized change scope.",
+    )
+    approve_parser.add_argument(
+        "--reason",
+        required=True,
+        help="Reason for approval.",
+    )
+
+    authorize_parser = subparsers.add_parser(
+        "authorize",
+        help="Validate authorization for an execution scope.",
+    )
+    authorize_parser.add_argument(
+        "--scope",
+        required=True,
+        help="Requested execution scope.",
+    )
+
     args = parser.parse_args()
     root = Path.cwd()
 
@@ -308,6 +343,78 @@ def main() -> None:
                 print(f"Run provenance: {run_path}")
 
         if not gate_result.passed:
+            raise SystemExit(1)
+
+    elif args.command == "approve":
+        gate_path = root / "artifacts" / "gate.json"
+        approval_path = root / "artifacts" / "approval.json"
+
+        if not gate_path.exists():
+            print("Approval rejected: gate evidence does not exist.")
+            raise SystemExit(1)
+
+        gate_data = json.loads(gate_path.read_text(encoding="utf-8"))
+
+        if not gate_data.get("passed", False):
+            print("Approval rejected: quality gate did not pass.")
+            raise SystemExit(1)
+
+        commit_sha = subprocess.run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        approval = create_approval(
+            approver=args.approver,
+            scope=args.scope,
+            reason=args.reason,
+            commit_sha=commit_sha,
+            gate_result="PASS",
+        )
+
+        write_approval(approval, approval_path)
+
+        print("AI Engineering Platform")
+        print("======================")
+        print()
+        print("Human approval:")
+        print("  Result: APPROVED")
+        print(f"  Approver: {approval.approver}")
+        print(f"  Scope: {approval.scope}")
+        print(f"  Commit: {approval.commit_sha}")
+        print(f"  Gate: {approval.gate_result}")
+        print(f"  Approval evidence: {approval_path}")
+
+    elif args.command == "authorize":
+        authorization_result = authorize(
+            root,
+            scope=args.scope,
+            allowed_scopes=(
+                "production_changes",
+                "security_changes",
+                "data_schema_changes",
+                "deployment_changes",
+            ),
+        )
+
+        print("AI Engineering Platform")
+        print("======================")
+        print()
+        print("Authorization:")
+        print(f"  Result: {'AUTHORIZED' if authorization_result.authorized else 'DENIED'}")
+        print(f"  Scope: {authorization_result.scope}")
+        print(f"  Commit: {authorization_result.commit_sha}")
+
+        if authorization_result.failures:
+            print()
+            print("Failures:")
+            for failure in authorization_result.failures:
+                print(f"  ✗ {failure}")
+
+        if not authorization_result.authorized:
             raise SystemExit(1)
 
     else:
