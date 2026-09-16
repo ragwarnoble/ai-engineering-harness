@@ -10,6 +10,7 @@ from harness.gate import QualityGateResult, run_quality_gate
 from harness.gate_evidence import write_gate_evidence
 from harness.manifest import PlatformManifest, load_manifest
 from harness.policy import PolicyEngine, PolicyResult
+from harness.run_manifest import write_run_manifest
 
 
 @dataclass(frozen=True)
@@ -243,7 +244,7 @@ def main() -> None:
     gate_parser.add_argument(
         "--evidence",
         action="store_true",
-        help="Persist quality-gate evidence to artifacts/gate.json.",
+        help="Persist quality-gate and run evidence.",
     )
 
     args = parser.parse_args()
@@ -289,8 +290,12 @@ def main() -> None:
         gate_result = run_quality_gate(manifest, root)
 
         if args.evidence:
-            evidence_path = root / "artifacts" / "gate.json"
+            artifacts_dir = root / "artifacts"
+            evidence_path = artifacts_dir / "gate.json"
+            run_path = artifacts_dir / "run.json"
+
             write_gate_evidence(gate_result, evidence_path)
+            write_run_manifest(root, run_path)
 
         if args.json:
             print(json.dumps(asdict(gate_result), indent=2, sort_keys=True))
@@ -299,7 +304,8 @@ def main() -> None:
 
             if args.evidence:
                 print()
-                print(f"Evidence: {evidence_path}")
+                print(f"Gate evidence: {evidence_path}")
+                print(f"Run provenance: {run_path}")
 
         if not gate_result.passed:
             raise SystemExit(1)
