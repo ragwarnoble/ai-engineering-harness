@@ -1,43 +1,39 @@
 from pathlib import Path
 
-from harness.agent import AgentRequest, MockAgent
+from harness.agent import AgentRequest, GovernedAgent, MockAgent
 
 
-def test_agent_request_defaults(tmp_path: Path) -> None:
+def test_governed_agent_allows_read_only_request(tmp_path: Path) -> None:
     request = AgentRequest(
-        task="inspect repository",
+        task="analyze repository",
         repository_root=str(tmp_path),
+        scope="read_only",
+        action="analyze",
     )
 
-    assert request.task == "inspect repository"
-    assert request.repository_root == str(tmp_path)
-    assert request.instructions == ""
-    assert request.constraints == ()
+    response = GovernedAgent(MockAgent()).run(request)
+
+    assert response.status == "completed"
+    assert response.summary == "Mock execution: analyze repository"
+    assert response.evidence == (
+        "governance:authorized",
+        "mock-agent",
+    )
 
 
-def test_agent_request_accepts_instructions_and_constraints(
+def test_governed_agent_denies_unauthorized_production_request(
     tmp_path: Path,
 ) -> None:
     request = AgentRequest(
-        task="run engineering checks",
+        task="commit changes",
         repository_root=str(tmp_path),
-        instructions="be deterministic",
-        constraints=("no network", "do not modify tests"),
+        scope="production_changes",
+        action="commit",
     )
 
-    assert request.instructions == "be deterministic"
-    assert request.constraints == ("no network", "do not modify tests")
+    response = GovernedAgent(MockAgent()).run(request)
 
-
-def test_mock_agent_completes_request(tmp_path: Path) -> None:
-    request = AgentRequest(
-        task="inspect repository",
-        repository_root=str(tmp_path),
-    )
-
-    response = MockAgent().run(request)
-
-    assert response.status == "completed"
-    assert response.summary == "Mock execution: inspect repository"
-    assert response.changes == ()
-    assert response.evidence == ("mock-agent",)
+    assert response.status == "denied"
+    assert response.summary == "Agent execution denied: commit changes"
+    assert response.evidence[0] == "governance:denied"
+    assert "gate evidence does not exist" in response.evidence
