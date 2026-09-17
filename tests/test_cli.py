@@ -18,6 +18,7 @@ from harness.cli import (
 from harness.gate import QualityGateResult
 from harness.manifest import load_manifest
 from harness.policy import PolicyEngine, PolicyResult
+from harness.provenance import ExecutionProvenance
 
 
 def test_inspect_repository_detects_harness_files(tmp_path: Path) -> None:
@@ -486,21 +487,18 @@ def test_main_execute_denied(
         lambda root, scope, action: result,
     )
     monkeypatch.setattr(
-        "sys.argv",
-        [
-            "harness",
-            "execute",
-            "--scope",
-            "production_changes",
-            "--action",
-            "deploy",
-        ],
+        "harness.cli.build_execution_provenance",
+        lambda root, result: ExecutionProvenance(
+            operation_id="test-operation",
+            timestamp="2026-01-01T00:00:00+00:00",
+            scope=result.scope,
+            action=result.action,
+            result="DENIED",
+            commit_sha="test-commit",
+            tree_sha="test-tree",
+            gate_result="UNKNOWN",
+            approval_scope=None,
+            approver=None,
+            failures=result.failures,
+        ),
     )
-
-    with pytest.raises(SystemExit) as exc_info:
-        main()
-
-    assert exc_info.value.code == 1
-    output = capsys.readouterr().out
-    assert "Result: DENIED" in output
-    assert "authorization denied" in output

@@ -13,6 +13,10 @@ from harness.gate import QualityGateResult, run_quality_gate
 from harness.gate_evidence import write_gate_evidence
 from harness.manifest import PlatformManifest, load_manifest
 from harness.policy import PolicyEngine, PolicyResult
+from harness.provenance import (
+    build_execution_provenance,
+    write_execution_provenance,
+)
 from harness.run_manifest import write_run_manifest
 from harness.target import create_execution_target, load_execution_target, write_execution_target
 
@@ -580,6 +584,16 @@ def main() -> None:
             action=args.action,
         )
 
+        provenance = build_execution_provenance(
+            root,
+            execution_result,
+        )
+
+        write_execution_provenance(
+            provenance,
+            root / "artifacts" / "execution.json",
+        )
+
         print("AI Engineering Platform")
         print("======================")
         print()
@@ -587,6 +601,7 @@ def main() -> None:
         print(f"  Result: {'EXECUTED' if execution_result.executed else 'DENIED'}")
         print(f"  Scope: {execution_result.scope}")
         print(f"  Action: {execution_result.action}")
+        print(f"  Operation ID: {provenance.operation_id}")
 
         if execution_result.failures:
             print()
