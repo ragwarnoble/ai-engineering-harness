@@ -4,6 +4,7 @@ from pathlib import Path
 
 from harness.approval import create_approval, write_approval
 from harness.authorization import authorize
+from harness.target import create_execution_target, write_execution_target
 
 
 def init_repo(tmp_path: Path) -> tuple[Path, str]:
@@ -66,6 +67,12 @@ def prepare_evidence(root: Path, commit_sha: str) -> None:
         json.dumps({"commit_sha": commit_sha}),
         encoding="utf-8",
     )
+
+    target = create_execution_target(
+        root,
+        gate_result="PASS",
+    )
+    write_execution_target(target, artifacts / "target.json")
 
     approval = create_approval(
         approver="human",

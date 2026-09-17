@@ -15,6 +15,7 @@ from harness.cli import (
     run_check,
     run_checks,
 )
+from harness.gate import QualityGateResult
 from harness.manifest import load_manifest
 from harness.policy import PolicyEngine, PolicyResult
 
@@ -342,3 +343,164 @@ def test_main_policy_failure_exits(
         main()
 
     assert exc_info.value.code == 1
+
+
+def test_main_gate_json(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    policy = PolicyResult(
+        passed=True,
+        required_checks=("format",),
+        required_evaluations=(),
+        human_approval_required=(),
+    )
+    gate_result = QualityGateResult(
+        passed=True,
+        policy=policy,
+        checks=(),
+    )
+
+    monkeypatch.setattr("harness.cli.repository_root", lambda: tmp_path)
+    monkeypatch.setattr("harness.cli.run_quality_gate", lambda manifest, root: gate_result)
+    (tmp_path / "platform.yaml").write_text(
+        Path("platform.yaml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("sys.argv", ["harness", "gate", "--json"])
+
+    main()
+
+    output = capsys.readouterr().out
+    assert '"passed": true' in output
+    assert '"format"' in output
+
+
+def test_main_approve_rejects_missing_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("harness.cli.repository_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "harness",
+            "approve",
+            "--approver",
+            "human",
+            "--scope",
+            "production_changes",
+            "--reason",
+            "Approved.",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    assert "gate evidence does not exist" in capsys.readouterr().out
+
+
+def test_main_approve_rejects_failed_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "gate.json").write_text(
+        json.dumps({"passed": False}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("harness.cli.repository_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "harness",
+            "approve",
+            "--approver",
+            "human",
+            "--scope",
+            "production_changes",
+            "--reason",
+            "Approved.",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    assert "quality gate did not pass" in capsys.readouterr().out
+
+
+def test_main_authorize_denied(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    from harness.authorization import AuthorizationResult
+
+    result = AuthorizationResult(
+        authorized=False,
+        scope="production_changes",
+        commit_sha="abc123",
+        failures=("approval evidence does not exist",),
+    )
+
+    monkeypatch.setattr("harness.cli.repository_root", lambda: tmp_path)
+    monkeypatch.setattr("harness.cli.authorize", lambda root, scope, allowed_scopes: result)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["harness", "authorize", "--scope", "production_changes"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    output = capsys.readouterr().out
+    assert "Result: DENIED" in output
+    assert "approval evidence does not exist" in output
+
+
+def test_main_execute_denied(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    from harness.executor import ExecutionResult
+
+    result = ExecutionResult(
+        executed=False,
+        scope="production_changes",
+        action="deploy",
+        failures=("authorization denied",),
+    )
+
+    monkeypatch.setattr("harness.cli.repository_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        "harness.cli.execute",
+        lambda root, scope, action: result,
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "harness",
+            "execute",
+            "--scope",
+            "production_changes",
+            "--action",
+            "deploy",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    output = capsys.readouterr().out
+    assert "Result: DENIED" in output
+    assert "authorization denied" in output

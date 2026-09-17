@@ -112,3 +112,47 @@ def test_rejects_unauthorized_scope() -> None:
 
     assert passed is False
     assert "approval scope is not authorized" in failures
+
+
+def test_rejects_blank_approver() -> None:
+    with pytest.raises(ValueError, match="approver is required"):
+        create_approval(
+            approver=" ",
+            scope="production_changes",
+            reason="Approved after successful quality gate.",
+            commit_sha="abc123",
+            gate_result="PASS",
+        )
+
+
+def test_rejects_blank_scope() -> None:
+    with pytest.raises(ValueError, match="scope is required"):
+        create_approval(
+            approver="human",
+            scope=" ",
+            reason="Approved after successful quality gate.",
+            commit_sha="abc123",
+            gate_result="PASS",
+        )
+
+
+def test_rejects_blank_reason() -> None:
+    with pytest.raises(ValueError, match="reason is required"):
+        create_approval(
+            approver="human",
+            scope="production_changes",
+            reason=" ",
+            commit_sha="abc123",
+            gate_result="PASS",
+        )
+
+
+def test_rejects_blank_commit() -> None:
+    with pytest.raises(ValueError, match="commit_sha is required"):
+        create_approval(
+            approver="human",
+            scope="production_changes",
+            reason="Approved after successful quality gate.",
+            commit_sha=" ",
+            gate_result="PASS",
+        )
