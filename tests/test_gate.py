@@ -128,3 +128,71 @@ def test_run_quality_gate_supports_security_check() -> None:
         "coverage",
         "security",
     ]
+
+
+def test_default_gate_supports_all_manifest_quality_gates() -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+
+    expected_checks = {
+        name
+        for name, enabled in (
+            ("format", manifest.quality_gates.format),
+            ("lint", manifest.quality_gates.lint),
+            ("typecheck", manifest.quality_gates.typecheck),
+            ("tests", manifest.quality_gates.tests),
+            ("coverage", manifest.quality_gates.coverage),
+            ("security", manifest.quality_gates.security),
+        )
+        if enabled
+    }
+
+    from harness.gate import CHECK_COMMANDS
+
+    supported_checks = set(CHECK_COMMANDS)
+
+    if manifest.quality_gates.coverage:
+        supported_checks.add("coverage")
+
+    assert expected_checks <= supported_checks
+
+
+def test_default_gate_enforces_manifest_coverage_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+    captured: dict[str, tuple[str, ...]] = {}
+
+    def fake_run_gate_check(
+        name: str,
+        command: tuple[str, ...],
+        root: Path,
+    ) -> GateCheckResult:
+        captured[name] = command
+        return GateCheckResult(
+            name=name,
+            passed=True,
+            returncode=0,
+            output="ok\n",
+        )
+
+    monkeypatch.setattr(
+        "harness.gate.run_gate_check",
+        fake_run_gate_check,
+    )
+
+    result = run_quality_gate(
+        manifest,
+        Path.cwd(),
+    )
+
+    assert result.passed is True
+    assert "coverage" in captured
+
+    coverage_command = captured["coverage"]
+
+    assert coverage_command[:3] == (
+        "pytest",
+        "--cov",
+        "--cov-report=term-missing",
+    )
+    assert coverage_command[-1] == (f"--cov-fail-under={manifest.quality_gates.coverage_threshold}")
