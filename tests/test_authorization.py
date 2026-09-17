@@ -146,3 +146,70 @@ def test_rejects_failed_gate(tmp_path: Path) -> None:
 
     assert result.authorized is False
     assert "quality gate did not pass" in result.failures
+
+
+def test_rejects_stale_commit(tmp_path: Path) -> None:
+    root, commit_sha = init_repo(tmp_path)
+    prepare_evidence(root, commit_sha)
+
+    (root / "change.txt").write_text("changed\n", encoding="utf-8")
+
+    subprocess.run(
+        ("git", "add", "change.txt"),
+        cwd=root,
+        check=True,
+    )
+
+    subprocess.run(
+        ("git", "commit", "-q", "-m", "second commit"),
+        cwd=root,
+        check=True,
+    )
+
+    result = authorize(
+        root,
+        scope="production_changes",
+        allowed_scopes=("production_changes",),
+    )
+
+    assert result.authorized is False
+    assert "current commit does not match execution target" in result.failures
+    assert "current tree does not match execution target" in result.failures
+
+
+def test_rejects_stale_tree(tmp_path: Path) -> None:
+    root, commit_sha = init_repo(tmp_path)
+    prepare_evidence(root, commit_sha)
+
+    (root / "README.md").write_text(
+        "modified\n",
+        encoding="utf-8",
+    )
+
+    result = authorize(
+        root,
+        scope="production_changes",
+        allowed_scopes=("production_changes",),
+    )
+
+    assert result.authorized is False
+    assert "working tree is not clean" in result.failures
+
+
+def test_rejects_dirty_working_tree(tmp_path: Path) -> None:
+    root, commit_sha = init_repo(tmp_path)
+    prepare_evidence(root, commit_sha)
+
+    (root / "README.md").write_text(
+        "dirty\n",
+        encoding="utf-8",
+    )
+
+    result = authorize(
+        root,
+        scope="production_changes",
+        allowed_scopes=("production_changes",),
+    )
+
+    assert result.authorized is False
+    assert "working tree is not clean" in result.failures

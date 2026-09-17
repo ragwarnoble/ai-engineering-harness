@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from harness.approval import ApprovalRecord, load_approval
+from harness.git_state import get_git_state
 from harness.target import ExecutionTarget, load_execution_target
 
 
@@ -31,10 +32,13 @@ def authorize(
 
     if not gate_path.exists():
         failures.append("gate evidence does not exist")
+
     if not run_path.exists():
         failures.append("run provenance does not exist")
+
     if not target_path.exists():
         failures.append("execution target does not exist")
+
     if not approval_path.exists():
         failures.append("approval evidence does not exist")
 
@@ -50,6 +54,17 @@ def authorize(
     run_data = json.loads(run_path.read_text(encoding="utf-8"))
     target: ExecutionTarget = load_execution_target(target_path)
     approval: ApprovalRecord = load_approval(approval_path)
+
+    current_state = get_git_state(root)
+
+    if not current_state.clean:
+        failures.append("working tree is not clean")
+
+    if current_state.commit_sha != target.commit_sha:
+        failures.append("current commit does not match execution target")
+
+    if current_state.tree_sha != target.tree_sha:
+        failures.append("current tree does not match execution target")
 
     if not gate_data.get("passed", False):
         failures.append("quality gate did not pass")
