@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -502,3 +503,117 @@ def test_main_execute_denied(
             failures=result.failures,
         ),
     )
+
+
+def test_main_execute_denies_stale_execution_target(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    from harness.approval import create_approval, write_approval
+    from harness.target import create_execution_target, write_execution_target
+
+    root = tmp_path / "repo"
+    root.mkdir()
+
+    subprocess.run(("git", "init", "-q"), cwd=root, check=True)
+    subprocess.run(
+        ("git", "config", "user.email", "test@example.com"),
+        cwd=root,
+        check=True,
+    )
+    subprocess.run(
+        ("git", "config", "user.name", "Test User"),
+        cwd=root,
+        check=True,
+    )
+
+    (root / "README.md").write_text("test\n", encoding="utf-8")
+    subprocess.run(("git", "add", "README.md"), cwd=root, check=True)
+    subprocess.run(
+        ("git", "commit", "-q", "-m", "test"),
+        cwd=root,
+        check=True,
+    )
+
+    commit_sha = subprocess.run(
+        ("git", "rev-parse", "HEAD"),
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+
+    (artifacts / "gate.json").write_text(
+        json.dumps({"passed": True}),
+        encoding="utf-8",
+    )
+
+    (artifacts / "run.json").write_text(
+        json.dumps({"commit_sha": commit_sha}),
+        encoding="utf-8",
+    )
+
+    target = create_execution_target(
+        root,
+        gate_result="PASS",
+    )
+    write_execution_target(
+        target,
+        artifacts / "target.json",
+    )
+
+    approval = create_approval(
+        approver="human",
+        scope="production_changes",
+        reason="Approved.",
+        commit_sha=commit_sha,
+        gate_result="PASS",
+    )
+    write_approval(
+        approval,
+        artifacts / "approval.json",
+    )
+
+    (root / "README.md").write_text(
+        "stale working tree\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("harness.cli.repository_root", lambda: root)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "harness",
+            "execute",
+            "--scope",
+            "production_changes",
+            "--action",
+            "commit",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+
+    output = capsys.readouterr().out
+
+    assert "Result: DENIED" in output
+    assert "working tree is not clean" in output
+
+    execution_path = artifacts / "execution.json"
+    assert execution_path.exists()
+
+    execution_data = json.loads(
+        execution_path.read_text(encoding="utf-8"),
+    )
+
+    assert execution_data["result"] == "DENIED"
+    assert execution_data["scope"] == "production_changes"
+    assert execution_data["action"] == "commit"
+    assert "working tree is not clean" in execution_data["failures"]

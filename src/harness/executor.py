@@ -46,13 +46,11 @@ def execute(
         authorization = authorize(
             root,
             scope=scope,
-            allowed_scopes=tuple(
-                {
-                    "read_only",
-                    "development_changes",
-                    "production_changes",
-                    "deployment_changes",
-                }
+            allowed_scopes=(
+                "read_only",
+                "development_changes",
+                "production_changes",
+                "deployment_changes",
             ),
         )
 
