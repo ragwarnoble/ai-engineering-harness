@@ -287,6 +287,17 @@ def print_gate_result(result: QualityGateResult) -> None:
         for check in result.checks:
             print(f"  {'✓' if check.passed else '✗'} {check.name}")
 
+    if result.evaluations:
+        print()
+        print("Evaluations:")
+        for evaluation in result.evaluations:
+            symbol = {
+                "PASS": "✓",
+                "FAIL": "✗",
+                "NOT_CONFIGURED": "⚠",
+            }[evaluation.status]
+            print(f"  {symbol} {evaluation.name}  {evaluation.status}")
+
     if result.unsupported_checks:
         print()
         print("Unsupported checks:")
@@ -452,7 +463,15 @@ def main() -> None:
                     }
                     for check in gate_result.checks
                 ],
-                "unsupported_checks": (gate_result.unsupported_checks),
+                "evaluations": [
+                    {
+                        "name": evaluation.name,
+                        "status": evaluation.status,
+                        "passed": evaluation.passed,
+                    }
+                    for evaluation in gate_result.evaluations
+                ],
+                "unsupported_checks": gate_result.unsupported_checks,
             }
 
             print()

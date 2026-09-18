@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from harness.manifest import PlatformManifest
 from harness.policy import PolicyEngine, PolicyResult
+
+EvaluationStatus = Literal["PASS", "FAIL", "NOT_CONFIGURED"]
 
 
 @dataclass(frozen=True)
@@ -17,11 +21,21 @@ class GateCheckResult:
 
 
 @dataclass(frozen=True)
+class GateEvaluationResult:
+    """Status of one policy-required evaluation."""
+
+    name: str
+    status: EvaluationStatus
+    passed: bool
+
+
+@dataclass(frozen=True)
 class QualityGateResult:
     passed: bool
     policy: PolicyResult
     checks: tuple[GateCheckResult, ...]
     unsupported_checks: tuple[str, ...] = ()
+    evaluations: tuple[GateEvaluationResult, ...] = ()
 
 
 CHECK_COMMANDS: dict[str, tuple[str, ...]] = {
@@ -49,6 +63,7 @@ def run_gate_check(
     )
 
     output = completed.stdout
+
     if completed.stderr:
         output += completed.stderr
 
@@ -60,10 +75,44 @@ def run_gate_check(
     )
 
 
+def evaluate_required_evaluations(
+    required: tuple[str, ...],
+    results: Mapping[str, bool] | None,
+) -> tuple[GateEvaluationResult, ...]:
+    """Resolve required evaluation names into explicit gate statuses."""
+
+    configured = results or {}
+    evaluations: list[GateEvaluationResult] = []
+
+    for name in required:
+        if name not in configured:
+            evaluations.append(
+                GateEvaluationResult(
+                    name=name,
+                    status="NOT_CONFIGURED",
+                    passed=False,
+                )
+            )
+            continue
+
+        passed = configured[name]
+
+        evaluations.append(
+            GateEvaluationResult(
+                name=name,
+                status="PASS" if passed else "FAIL",
+                passed=passed,
+            )
+        )
+
+    return tuple(evaluations)
+
+
 def run_quality_gate(
     manifest: PlatformManifest,
     root: Path,
-    commands: dict[str, tuple[str, ...]] | None = None,
+    commands: Mapping[str, tuple[str, ...]] | None = None,
+    evaluations: Mapping[str, bool] | None = None,
 ) -> QualityGateResult:
     """Evaluate platform policy and execute the required quality checks."""
 
@@ -75,6 +124,7 @@ def run_quality_gate(
             policy=policy_result,
             checks=(),
             unsupported_checks=(),
+            evaluations=(),
         )
 
     check_commands = commands or CHECK_COMMANDS
@@ -110,13 +160,24 @@ def run_quality_gate(
         if not result.passed:
             break
 
+    evaluation_results = evaluate_required_evaluations(
+        policy_result.required_evaluations,
+        evaluations,
+    )
+
     passed = (
         policy_result.passed and not unsupported_checks and all(check.passed for check in checks)
     )
+
+    # Configured evaluations participate in the gate.
+    # Missing evaluations remain explicitly NOT_CONFIGURED for now.
+    if any(evaluation.status == "FAIL" for evaluation in evaluation_results):
+        passed = False
 
     return QualityGateResult(
         passed=passed,
         policy=policy_result,
         checks=tuple(checks),
         unsupported_checks=tuple(unsupported_checks),
+        evaluations=evaluation_results,
     )

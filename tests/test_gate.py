@@ -66,8 +66,8 @@ def test_run_quality_gate_uses_manifest_policy() -> None:
     ]
     assert all(check.passed for check in result.checks)
 
-    # The manifest currently requires gates that do not yet have
-    # executable commands in the orchestrator.
+    # This test intentionally supplies only a subset of the required
+    # quality-check commands.
     assert result.unsupported_checks == ("coverage", "security")
     assert result.passed is False
 
@@ -196,3 +196,110 @@ def test_default_gate_enforces_manifest_coverage_threshold(
         "--cov-report=term-missing",
     )
     assert coverage_command[-1] == (f"--cov-fail-under={manifest.quality_gates.coverage_threshold}")
+
+
+def test_required_evaluation_passes_when_configured() -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+
+    result = run_quality_gate(
+        manifest,
+        Path.cwd(),
+        commands={
+            "format": ("python", "-c", "print('format')"),
+            "lint": ("python", "-c", "print('lint')"),
+            "typecheck": ("python", "-c", "print('typecheck')"),
+            "tests": ("python", "-c", "print('tests')"),
+            "coverage": ("python", "-c", "print('coverage')"),
+            "security": ("python", "-c", "print('security')"),
+        },
+        evaluations={"engineering_evaluation": True},
+    )
+
+    engineering = next(
+        evaluation
+        for evaluation in result.evaluations
+        if evaluation.name == "engineering_evaluation"
+    )
+
+    assert engineering.status == "PASS"
+    assert engineering.passed is True
+    assert result.passed is True
+
+
+def test_required_evaluation_fails_when_configured() -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+
+    result = run_quality_gate(
+        manifest,
+        Path.cwd(),
+        commands={
+            "format": ("python", "-c", "print('format')"),
+            "lint": ("python", "-c", "print('lint')"),
+            "typecheck": ("python", "-c", "print('typecheck')"),
+            "tests": ("python", "-c", "print('tests')"),
+            "coverage": ("python", "-c", "print('coverage')"),
+            "security": ("python", "-c", "print('security')"),
+        },
+        evaluations={"engineering_evaluation": False},
+    )
+
+    engineering = next(
+        evaluation
+        for evaluation in result.evaluations
+        if evaluation.name == "engineering_evaluation"
+    )
+
+    assert engineering.status == "FAIL"
+    assert engineering.passed is False
+    assert result.passed is False
+
+
+def test_required_evaluation_is_not_configured_when_missing() -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+
+    result = run_quality_gate(
+        manifest,
+        Path.cwd(),
+        commands={
+            "format": ("python", "-c", "print('format')"),
+            "lint": ("python", "-c", "print('lint')"),
+            "typecheck": ("python", "-c", "print('typecheck')"),
+            "tests": ("python", "-c", "print('tests')"),
+            "coverage": ("python", "-c", "print('coverage')"),
+            "security": ("python", "-c", "print('security')"),
+        },
+    )
+
+    assert len(result.evaluations) == len(result.policy.required_evaluations)
+    assert all(evaluation.status == "NOT_CONFIGURED" for evaluation in result.evaluations)
+    assert all(evaluation.passed is False for evaluation in result.evaluations)
+    assert result.passed is True
+
+
+def test_no_required_evaluations_produces_no_evaluation_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = load_manifest(Path("platform.yaml"))
+
+    class EvaluationFreePolicyEngine:
+        def evaluate(self, manifest: object) -> PolicyResult:
+            return PolicyResult(
+                passed=True,
+                required_checks=(),
+                required_evaluations=(),
+                human_approval_required=(),
+                failures=(),
+            )
+
+    monkeypatch.setattr(
+        "harness.gate.PolicyEngine",
+        EvaluationFreePolicyEngine,
+    )
+
+    result = run_quality_gate(
+        manifest,
+        Path.cwd(),
+    )
+
+    assert result.evaluations == ()
+    assert result.passed is True
