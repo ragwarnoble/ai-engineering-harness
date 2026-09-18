@@ -363,7 +363,10 @@ def test_main_gate_json(
     )
 
     monkeypatch.setattr("harness.cli.repository_root", lambda: tmp_path)
-    monkeypatch.setattr("harness.cli.run_quality_gate", lambda manifest, root: gate_result)
+    monkeypatch.setattr(
+        "harness.cli.run_quality_gate",
+        lambda manifest, root, evaluations=None: gate_result,
+    )
     (tmp_path / "platform.yaml").write_text(
         Path("platform.yaml").read_text(encoding="utf-8"),
         encoding="utf-8",

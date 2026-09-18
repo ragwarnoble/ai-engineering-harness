@@ -8,6 +8,7 @@ from pathlib import Path
 
 from harness.approval import create_approval, write_approval
 from harness.authorization import authorize
+from harness.evaluation_registry import run_configured_evaluations
 from harness.executor import execute
 from harness.gate import QualityGateResult, run_quality_gate
 from harness.gate_evidence import write_gate_evidence
@@ -437,9 +438,15 @@ def main() -> None:
     if args.command == "gate":
         manifest = load_manifest(root / "platform.yaml")
 
+        policy_result = PolicyEngine().evaluate(manifest)
+        evaluation_results = run_configured_evaluations(
+            policy_result.required_evaluations,
+        )
+
         gate_result = run_quality_gate(
             manifest,
             root,
+            evaluations=evaluation_results,
         )
 
         print_gate_result(gate_result)

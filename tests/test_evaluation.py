@@ -2,7 +2,9 @@ from harness.evaluation import (
     DeterministicEvaluator,
     EvaluationCase,
     EvaluationResult,
+    EvaluationSpec,
     evaluate_cases,
+    run_evaluation,
 )
 
 
@@ -70,3 +72,21 @@ def test_evaluate_empty_cases_passes() -> None:
     assert summary.passed_count == 0
     assert summary.failed_count == 0
     assert summary.results == ()
+
+
+def test_run_evaluation_executes_named_spec() -> None:
+    spec = EvaluationSpec(
+        name="uppercase_evaluation",
+        evaluator=DeterministicEvaluator(lambda value: value.upper()),
+        cases=(
+            EvaluationCase("hello", "hello", "HELLO"),
+            EvaluationCase("world", "world", "WORLD"),
+        ),
+    )
+
+    summary = run_evaluation(spec)
+
+    assert summary.passed is True
+    assert summary.total == 2
+    assert summary.passed_count == 2
+    assert summary.failed_count == 0

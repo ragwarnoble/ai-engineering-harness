@@ -80,3 +80,21 @@ def evaluate_cases(
         failed_count=failed_count,
         results=results,
     )
+
+
+@dataclass(frozen=True)
+class EvaluationSpec:
+    """Named evaluation definition."""
+
+    name: str
+    evaluator: Evaluator
+    cases: tuple[EvaluationCase, ...]
+
+
+def run_evaluation(spec: EvaluationSpec) -> EvaluationSummary:
+    """Execute one named evaluation."""
+
+    return evaluate_cases(
+        spec.evaluator,
+        spec.cases,
+    )
