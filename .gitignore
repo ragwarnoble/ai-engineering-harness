@@ -13,3 +13,6 @@ venv/
 dist/
 build/
 *.egg-info/
+
+# Generated evidence
+artifacts/*.json
